@@ -98,6 +98,12 @@ data Judgement = Keep | Discard
 
 type Limit = Size
 
+-- | Sequences have two ends which we call 'Left' and 'Right'.
+--
+-- Which end receives which of these two labels is somewhat arbitrary but usually corresponds to how we write the sequence. For example, in the string @hello@, the "leftmost" character is @h@ and the "rightmost" is @o@.
+--
+-- Sometimes we think of 'Left' as the "beginning" and 'Right' as the end, since we write from left to right and traverse sequences such as the built-in list type @[]@ from left to right. But this left-to-right convention is not a /necessary/ aspect of sequences.
+
 data Side = Left | Right
 
 type Size = Natural
