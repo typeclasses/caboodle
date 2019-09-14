@@ -6,8 +6,10 @@ module Caboodle
   (
   -- * Aspects of caboodles
   -- ** Elements (of sets and sequences)
+  -- $elements
     Element
   -- ** Keys and values (of maps)
+  -- $keysAndValues
   , Key, Value
   -- ** Size and counting
   , Size
@@ -72,6 +74,12 @@ import qualified Data.HashSet as HashSet
 
 
 --- Type families ---
+
+-- $elements
+-- Sets and sequences have an 'Element' type.
+
+-- $keysAndValues
+-- Maps have a 'Key' type and a 'Value' type.
 
 type family Element caboodle
 
