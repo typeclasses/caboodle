@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -Wall #-}
 
-{-# LANGUAGE BangPatterns, FlexibleInstances, FunctionalDependencies, LambdaCase, NoImplicitPrelude, TypeFamilies #-}
+{-# LANGUAGE BangPatterns, ConstraintKinds, FlexibleContexts, FlexibleInstances, FunctionalDependencies, LambdaCase, NoImplicitPrelude, ScopedTypeVariables, TypeFamilies #-}
 
 module Caboodle
   (
@@ -14,7 +14,7 @@ module Caboodle
   -- ** Size and counting
   , Size
   -- *** Finite size
-  , Finite (..)
+  , Finite (..), mustBeFinite
   -- *** Counting with an upper bound
   , Countable (..), Count (..), Limit, countExactly
   -- ** Tips
@@ -24,7 +24,7 @@ module Caboodle
   -- *** Extrema (min/max)
   , Extreme (..), Extrema (..)
   -- ** Filtering
-  , Filter (..), MapFilter (..), Judgement (..)
+  , Filter (..), MapFilter (..), Judgement (..), keepJudgement, keep, discard
   -- ** Triviality
   , Trivial (..), Triviality (..), zero, one, empty, null, singleton
   -- ** Testing for membership
@@ -37,21 +37,26 @@ module Caboodle
   , Intersection (..), Union (..)
   -- ** Map operations
   , MapEnumerable (..), MapIntersection (..), MapUnion (..), TotalMap (..)
+  -- ** Sorting
+  , sortUnique
   -- ** Conversions between caboodle types
-  , ToConsList (..), FiniteConsListIso (..)
+  , ToConsList (..), FiniteConsListIso (..), convertViaFiniteConsList
 
   -- * Caboodles
   -- ** Lists
-  , FingerList, ConsList, FiniteConsList
+  , FingerList, ConsList, FiniteConsList, FiniteConsText
   -- ** Sets
   , OrdSet, HashSet
   -- ** Maps
   , OrdMap, HashMap
 
+  -- * Bundles of constraints
+  , Map
+
   ) where
 
 import Prelude ((.), succ)
-import Prelude (Bool (..), Eq (..), Show, Maybe (..), Ord (..))
+import Prelude (Bool (..), Eq (..), Show, Maybe (..), Ord (..), Char)
 import Prelude (fromIntegral)
 
 import Control.Monad ((>=>))
@@ -60,6 +65,8 @@ import Numeric.Natural (Natural)
 import qualified Data.List as ConsList
 import qualified Data.Maybe as Maybe
 import qualified Data.Foldable as Foldable
+
+import qualified GHC.Exts
 
 -- optics
 import Optics
@@ -232,6 +239,23 @@ empty = review zero ()
 singleton :: Trivial caboodle => Element caboodle -> caboodle
 singleton = review one
 
+convertViaFiniteConsList :: (FiniteConsListIso caboodle1, FiniteConsListIso caboodle2, Element caboodle1 ~ Element caboodle2) => caboodle1 -> caboodle2
+convertViaFiniteConsList = review finiteConsList . view finiteConsList
+
+sortUnique :: forall caboodle. (FiniteConsListIso caboodle, Ord (Element caboodle)) => caboodle -> caboodle
+sortUnique c = convertViaFiniteConsList (convertViaFiniteConsList c :: OrdSet (Element caboodle))
+
+keep :: Filter caboodle => (Element caboodle -> Bool) -> caboodle -> caboodle
+keep f = filter (review keepJudgement . f)
+
+discard :: Filter caboodle => (Element caboodle -> Bool) -> caboodle -> caboodle
+discard f = filter (review discardJudgement . f)
+
+-- | Use this conversion only when you have a cons list that you know to be finite.
+
+mustBeFinite :: ConsList element -> FiniteConsList element
+mustBeFinite = FiniteConsList
+
 
 --- Optics ---
 
@@ -255,8 +279,11 @@ tipBase = iso f g
     f = \case Nil -> Nothing; x :+ xs -> Just (x, xs)
     g = \case Nothing -> Nil; Just (x, xs) -> x :+ xs
 
-keep :: Iso' Judgement Bool
-keep = iso (\case Keep -> True; Discard -> False) (\case True -> Keep; False -> Discard)
+keepJudgement :: Iso' Judgement Bool
+keepJudgement = iso (\case Keep -> True; Discard -> False) (\case True -> Keep; False -> Discard)
+
+discardJudgement :: Iso' Judgement Bool
+discardJudgement = iso (\case Keep -> False; Discard -> True) (\case True -> Discard; False -> Keep)
 
 
 --- ConsList ---
@@ -277,7 +304,7 @@ instance Countable (ConsList element)
 
 instance Filter (ConsList element)
   where
-    filter f = ConsList.filter (view keep . f)
+    filter f = ConsList.filter (view keepJudgement . f)
 
 instance ToConsList (ConsList element)
   where
@@ -287,12 +314,19 @@ instance ToConsList (ConsList element)
 --- FiniteConsList ---
 
 newtype FiniteConsList element = FiniteConsList (ConsList element)
+  deriving (Eq, Show)
 
 type instance Element (FiniteConsList element) = element
 
+instance GHC.Exts.IsList (FiniteConsList element)
+  where
+    type Item (FiniteConsList element) = element
+    toList (FiniteConsList xs) = xs
+    fromList = mustBeFinite
+
 instance Filter (FiniteConsList element)
   where
-    filter f (FiniteConsList xs) = FiniteConsList (filter f xs)
+    filter f (FiniteConsList xs) = mustBeFinite (filter f xs)
 
 instance FiniteConsListIso (FiniteConsList element)
   where
@@ -301,6 +335,15 @@ instance FiniteConsListIso (FiniteConsList element)
 instance ToConsList (FiniteConsList element)
   where
     toConsList (FiniteConsList xs) = xs
+
+
+--- FiniteString ---
+
+type FiniteConsText = FiniteConsList Char
+
+instance GHC.Exts.IsString FiniteConsText
+  where
+    fromString = mustBeFinite
 
 
 --- FingerList ---
@@ -326,7 +369,7 @@ instance Endpoints (FingerList element)
 
 instance Filter (FingerList element)
   where
-    filter f = FingerList.filter (view keep . f)
+    filter f = FingerList.filter (view keepJudgement . f)
 
 instance Finite (FingerList element)
   where
@@ -376,7 +419,7 @@ instance Finite (OrdSet element)
 
 instance Filter (OrdSet element)
   where
-    filter f = OrdSet.filter (view keep . f)
+    filter f = OrdSet.filter (view keepJudgement . f)
 
 instance Ord element => FiniteConsListIso (OrdSet element)
   where
@@ -390,13 +433,13 @@ instance Ord element => Intersection (OrdSet element)
   where
     intersection = OrdSet.intersection
 
-instance Ord element => ToConsList (OrdSet element)
-  where
-    toConsList = Foldable.toList
-
 instance Ord element => Membership (OrdSet element)
   where
     member = OrdSet.member
+
+instance Ord element => ToConsList (OrdSet element)
+  where
+    toConsList = Foldable.toList
 
 instance Ord element => Trivial (OrdSet element)
   where
@@ -430,7 +473,7 @@ instance Ord key => Extrema (OrdMap key value)
 
 instance Filter (OrdMap key value)
   where
-    filter f = OrdMap.filterWithKey (\key value -> view keep (f (key, value)))
+    filter f = OrdMap.filterWithKey (\key value -> view keepJudgement (f (key, value)))
 
 instance Finite (OrdMap key value)
   where
@@ -455,7 +498,7 @@ instance MapEnumerable (OrdMap key value)
 
 instance Ord key => MapFilter (OrdMap key value)
   where
-    filterValues f = OrdMap.filter (view keep . f)
+    filterValues f = OrdMap.filter (view keepJudgement . f)
 
 instance Ord key => MapIntersection (OrdMap key value)
   where
@@ -481,3 +524,23 @@ type HashSet element = HashSet.HashSet element
 --- HashMap ---
 
 type HashMap key value = HashMap.HashMap key value
+
+
+--- Bundles of constraints ---
+
+type Map key value caboodle =
+  ( Key caboodle ~ key
+  , Value caboodle ~ value
+  , Countable caboodle
+  , Extrema caboodle
+  , Filter caboodle
+  , Finite caboodle
+  , FiniteConsListIso caboodle
+  , Insert caboodle
+  , ToConsList caboodle
+  , MapEnumerable caboodle
+  , MapFilter caboodle
+  , MapIntersection caboodle
+  , MapUnion caboodle
+  , Trivial caboodle
+  )
