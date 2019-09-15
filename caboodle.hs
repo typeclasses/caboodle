@@ -42,7 +42,7 @@ module Caboodle
 
   -- * Caboodles
   -- ** Sequences
-  , FingerSeq
+  , FingerSeq, ConsList
   -- ** Sets
   , OrdSet, HashSet
   -- ** Maps
@@ -100,9 +100,13 @@ type Limit = Size
 
 -- | Sequences have two ends which we call 'Left' and 'Right'.
 --
+-- ==== Meaning of "left" and "right"
+--
 -- Which end receives which of these two labels is somewhat arbitrary but usually corresponds to how we write the sequence. For example, in the string @hello@, the "leftmost" character is @h@ and the "rightmost" is @o@.
 --
--- Sometimes we think of 'Left' as the "beginning" and 'Right' as the end, since we write from left to right and traverse sequences such as the built-in list type @[]@ from left to right. But this left-to-right convention is not a /necessary/ aspect of sequences.
+-- ==== Relationship to "beginning" and "end"
+--
+-- Sometimes we think of 'Left' as the "beginning" and 'Right' as the "end", since we write from left to right and traverse sequences such as 'ConsList' from left to right. But this left-to-right convention is not a /necessary/ aspect of sequences.
 
 data Side = Left | Right
 
@@ -243,6 +247,13 @@ tipBase = iso f g
   where
     f = \case Nil -> Nothing; x :+ xs -> Just (x, xs)
     g = \case Nothing -> Nil; Just (x, xs) -> x :+ xs
+
+
+--- ConsList ---
+
+type ConsList element = [element]
+
+type instance Element (ConsList element) = element
 
 
 --- FingerSeq ---
