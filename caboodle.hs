@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -Wall #-}
 
-{-# LANGUAGE FlexibleInstances, FunctionalDependencies, LambdaCase, NoImplicitPrelude, TypeFamilies #-}
+{-# LANGUAGE BangPatterns, FlexibleInstances, FunctionalDependencies, LambdaCase, NoImplicitPrelude, TypeFamilies #-}
 
 module Caboodle
   (
@@ -50,13 +50,14 @@ module Caboodle
 
   ) where
 
-import Prelude ((.))
-import Prelude (Bool (..), Eq, Show, Maybe (..), Ord (..))
+import Prelude ((.), succ)
+import Prelude (Bool (..), Eq (..), Show, Maybe (..), Ord (..))
 import Prelude (fromIntegral)
 
 import Control.Monad ((>=>))
 import Numeric.Natural (Natural)
 
+import qualified Data.List as ConsList
 import qualified Data.Maybe as Maybe
 import qualified Data.Foldable as Foldable
 
@@ -98,7 +99,7 @@ data Judgement = Keep | Discard
 
 type Limit = Size
 
--- | Lists have two ends which we call 'Left' and 'Right'.
+-- | Finite lists have two ends which we call 'Left' and 'Right'.
 --
 -- ==== Meaning of "left" and "right"
 --
@@ -106,7 +107,7 @@ type Limit = Size
 --
 -- ==== Relationship to "beginning" and "end"
 --
--- Sometimes we think of 'Left' as the "beginning" and 'Right' as the "end", since we write from left to right and traverse list types such as 'ConsList' from left to right. But this left-to-right convention is not a /necessary/ aspect of lists.
+-- Sometimes we think of 'Left' as the "beginning" and 'Right' as the "end", since we write from left to right and traverse list types such as 'FingerList' from left to right. But this left-to-right convention is not a /necessary/ aspect of lists.
 
 data Side = Left | Right
 
@@ -254,6 +255,21 @@ tipBase = iso f g
 type ConsList element = [element]
 
 type instance Element (ConsList element) = element
+
+instance Countable (ConsList element)
+  where
+    count limit = go 0
+      where
+        go c =
+          \case
+            []                  ->  Counted c
+            _ : _ | c == limit  ->  TooMany
+            _ : xs              ->  let !c' = succ c in go c' xs
+
+instance List (ConsList element)
+  where
+    list = simple
+
 
 
 --- FingerList ---
