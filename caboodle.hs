@@ -24,7 +24,7 @@ module Caboodle
   -- *** Extrema (min/max)
   , Extreme (..), Extrema (..)
   -- ** Filtering
-  , MapFilter (..), Judgement (..)
+  , Filter (..), MapFilter (..), Judgement (..)
   -- ** Triviality
   , Trivial (..), Triviality (..), zero, one, empty, null, singleton
   -- ** Testing for membership
@@ -33,16 +33,16 @@ module Caboodle
   , Insert (..)
   -- ** Deletion
   , Delete (..)
-  -- ** Convertion with list
-  , List (..), fromList, toList
   -- ** Set operations
   , Intersection (..), Union (..)
   -- ** Map operations
   , MapEnumerable (..), MapIntersection (..), MapUnion (..), TotalMap (..)
+  -- ** Conversions between caboodle types
+  , ToConsList (..), FiniteConsListIso (..)
 
   -- * Caboodles
   -- ** Lists
-  , FingerList, ConsList
+  , FingerList, ConsList, FiniteConsList
   -- ** Sets
   , OrdSet, HashSet
   -- ** Maps
@@ -92,10 +92,13 @@ type family Value caboodle
 --- Types ---
 
 data Count = Counted Size | TooMany
+  deriving (Eq, Show)
 
 data Extreme = Low | High
+  deriving (Eq, Show)
 
 data Judgement = Keep | Discard
+  deriving (Eq, Show)
 
 type Limit = Size
 
@@ -110,6 +113,7 @@ type Limit = Size
 -- Sometimes we think of 'Left' as the "beginning" and 'Right' as the "end", since we write from left to right and traverse list types such as 'FingerList' from left to right. But this left-to-right convention is not a /necessary/ aspect of lists.
 
 data Side = Left | Right
+  deriving (Eq, Show)
 
 type Size = Natural
 
@@ -145,9 +149,17 @@ class Extrema caboodle
   where
     extreme :: Extreme -> caboodle -> Tip (Element caboodle) caboodle
 
+class Filter caboodle
+  where
+    filter :: (Element caboodle -> Judgement) -> caboodle -> caboodle
+
 class Finite caboodle
   where
     size :: caboodle -> Size
+
+class FiniteConsListIso caboodle
+  where
+    finiteConsList :: Iso' caboodle (FiniteConsList (Element caboodle))
 
 class Insert caboodle
   where
@@ -156,10 +168,6 @@ class Insert caboodle
 class Intersection caboodle
   where
     intersection :: caboodle -> caboodle -> caboodle
-
-class List caboodle
-  where
-    list :: Iso' caboodle [Element caboodle]
 
 class MapEnumerable caboodle
   where
@@ -185,6 +193,10 @@ class MapUnion caboodle
 class Membership caboodle
   where
     member :: Element caboodle -> caboodle -> Bool
+
+class ToConsList caboodle
+  where
+    toConsList :: caboodle -> ConsList (Element caboodle)
 
 class TotalMap caboodle
   where
@@ -220,12 +232,6 @@ empty = review zero ()
 singleton :: Trivial caboodle => Element caboodle -> caboodle
 singleton = review one
 
-toList :: List caboodle => caboodle -> [Element caboodle]
-toList = view list
-
-fromList :: List caboodle => [Element caboodle] -> caboodle
-fromList = review list
-
 
 --- Optics ---
 
@@ -249,6 +255,9 @@ tipBase = iso f g
     f = \case Nil -> Nothing; x :+ xs -> Just (x, xs)
     g = \case Nothing -> Nil; Just (x, xs) -> x :+ xs
 
+keep :: Iso' Judgement Bool
+keep = iso (\case Keep -> True; Discard -> False) (\case True -> Keep; False -> Discard)
+
 
 --- ConsList ---
 
@@ -266,10 +275,32 @@ instance Countable (ConsList element)
             _ : _ | c == limit  ->  TooMany
             _ : xs              ->  let !c' = succ c in go c' xs
 
-instance List (ConsList element)
+instance Filter (ConsList element)
   where
-    list = simple
+    filter f = ConsList.filter (view keep . f)
 
+instance ToConsList (ConsList element)
+  where
+    toConsList xs = xs
+
+
+--- FiniteConsList ---
+
+newtype FiniteConsList element = FiniteConsList (ConsList element)
+
+type instance Element (FiniteConsList element) = element
+
+instance Filter (FiniteConsList element)
+  where
+    filter f (FiniteConsList xs) = FiniteConsList (filter f xs)
+
+instance FiniteConsListIso (FiniteConsList element)
+  where
+    finiteConsList = simple
+
+instance ToConsList (FiniteConsList element)
+  where
+    toConsList (FiniteConsList xs) = xs
 
 
 --- FingerList ---
@@ -293,13 +324,21 @@ instance Endpoints (FingerList element)
         f = \case FingerList.EmptyR -> Nil; xs FingerList.:> x -> x :+ xs
         g = \case Nil -> FingerList.empty; x :+ xs -> xs FingerList.|> x
 
+instance Filter (FingerList element)
+  where
+    filter f = FingerList.filter (view keep . f)
+
 instance Finite (FingerList element)
   where
     size = fromIntegral . FingerList.length
 
-instance List (FingerList element)
+instance FiniteConsListIso (FingerList element)
   where
-    list = iso Foldable.toList FingerList.fromList
+    finiteConsList = iso Foldable.toList FingerList.fromList % coerced
+
+instance ToConsList (FingerList element)
+  where
+    toConsList = Foldable.toList
 
 instance Trivial (FingerList element)
   where
@@ -335,6 +374,14 @@ instance Finite (OrdSet element)
   where
     size = fromIntegral . OrdSet.size
 
+instance Filter (OrdSet element)
+  where
+    filter f = OrdSet.filter (view keep . f)
+
+instance Ord element => FiniteConsListIso (OrdSet element)
+  where
+    finiteConsList = iso Foldable.toList OrdSet.fromList % coerced
+
 instance Ord element => Insert (OrdSet element)
   where
     insert = OrdSet.insert
@@ -343,9 +390,9 @@ instance Ord element => Intersection (OrdSet element)
   where
     intersection = OrdSet.intersection
 
-instance Ord element => List (OrdSet element)
+instance Ord element => ToConsList (OrdSet element)
   where
-    list = iso Foldable.toList OrdSet.fromList
+    toConsList = Foldable.toList
 
 instance Ord element => Membership (OrdSet element)
   where
@@ -381,17 +428,25 @@ instance Ord key => Extrema (OrdMap key value)
       where
         f = \case Low -> OrdMap.minViewWithKey; High -> OrdMap.maxViewWithKey
 
+instance Filter (OrdMap key value)
+  where
+    filter f = OrdMap.filterWithKey (\key value -> view keep (f (key, value)))
+
 instance Finite (OrdMap key value)
   where
     size = fromIntegral . OrdMap.size
+
+instance Ord key => FiniteConsListIso (OrdMap key value)
+  where
+    finiteConsList = iso OrdMap.toList OrdMap.fromList % coerced
 
 instance Ord key => Insert (OrdMap key value)
   where
     insert (k, a) = OrdMap.insert k a
 
-instance Ord key => List (OrdMap key value)
+instance Ord key => ToConsList (OrdMap key value)
   where
-    list = iso OrdMap.toList OrdMap.fromList
+    toConsList = OrdMap.toList
 
 instance MapEnumerable (OrdMap key value)
   where
@@ -400,7 +455,7 @@ instance MapEnumerable (OrdMap key value)
 
 instance Ord key => MapFilter (OrdMap key value)
   where
-    filterValues f = OrdMap.filter ((\case Keep -> True; Discard -> False) . f)
+    filterValues f = OrdMap.filter (view keep . f)
 
 instance Ord key => MapIntersection (OrdMap key value)
   where
