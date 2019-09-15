@@ -5,7 +5,7 @@
 module Caboodle
   (
   -- * Aspects of caboodles
-  -- ** Elements (of sets and sequences)
+  -- ** Elements (of sets and lists)
   -- $elements
     Element
   -- ** Keys and values (of maps)
@@ -41,8 +41,8 @@ module Caboodle
   , MapEnumerable (..), MapIntersection (..), MapUnion (..), TotalMap (..)
 
   -- * Caboodles
-  -- ** Sequences
-  , FingerSeq, ConsList
+  -- ** Lists
+  , FingerList, ConsList
   -- ** Sets
   , OrdSet, HashSet
   -- ** Maps
@@ -66,7 +66,7 @@ import Optics
 -- containers
 import qualified Data.Map.Lazy as OrdMap
 import qualified Data.Set as OrdSet
-import qualified Data.Sequence as FingerSeq
+import qualified Data.Sequence as FingerList
 
 -- unordered-containers
 import qualified Data.HashMap.Lazy as HashMap
@@ -76,7 +76,7 @@ import qualified Data.HashSet as HashSet
 --- Type families ---
 
 -- $elements
--- Sets and sequences have an 'Element' type.
+-- Sets and lists have an 'Element' type.
 
 -- $keysAndValues
 -- Maps have a 'Key' type and a 'Value' type.
@@ -98,15 +98,15 @@ data Judgement = Keep | Discard
 
 type Limit = Size
 
--- | Sequences have two ends which we call 'Left' and 'Right'.
+-- | Lists have two ends which we call 'Left' and 'Right'.
 --
 -- ==== Meaning of "left" and "right"
 --
--- Which end receives which of these two labels is somewhat arbitrary but usually corresponds to how we write the sequence. For example, in the string @hello@, the "leftmost" character is @h@ and the "rightmost" is @o@.
+-- Which end receives which of these two labels is somewhat arbitrary but usually corresponds to how we write the list. For example, in the string @hello@, the "leftmost" character is @h@ and the "rightmost" is @o@.
 --
 -- ==== Relationship to "beginning" and "end"
 --
--- Sometimes we think of 'Left' as the "beginning" and 'Right' as the "end", since we write from left to right and traverse sequences such as 'ConsList' from left to right. But this left-to-right convention is not a /necessary/ aspect of sequences.
+-- Sometimes we think of 'Left' as the "beginning" and 'Right' as the "end", since we write from left to right and traverse list types such as 'ConsList' from left to right. But this left-to-right convention is not a /necessary/ aspect of lists.
 
 data Side = Left | Right
 
@@ -256,40 +256,40 @@ type ConsList element = [element]
 type instance Element (ConsList element) = element
 
 
---- FingerSeq ---
+--- FingerList ---
 
-type FingerSeq element = FingerSeq.Seq element
+type FingerList element = FingerList.Seq element
 
-type instance Element (FingerSeq element) = element
+type instance Element (FingerList element) = element
 
-instance Countable (FingerSeq element)
+instance Countable (FingerList element)
   where
     count = countExactly
 
-instance Endpoints (FingerSeq element)
+instance Endpoints (FingerList element)
   where
-    side Left = iso (f . FingerSeq.viewl) g
+    side Left = iso (f . FingerList.viewl) g
       where
-        f = \case FingerSeq.EmptyL -> Nil; x FingerSeq.:< xs -> x :+ xs
-        g = \case Nil -> FingerSeq.empty; x :+ xs -> x FingerSeq.<| xs
-    side Right = iso (f . FingerSeq.viewr) g
+        f = \case FingerList.EmptyL -> Nil; x FingerList.:< xs -> x :+ xs
+        g = \case Nil -> FingerList.empty; x :+ xs -> x FingerList.<| xs
+    side Right = iso (f . FingerList.viewr) g
       where
-        f = \case FingerSeq.EmptyR -> Nil; xs FingerSeq.:> x -> x :+ xs
-        g = \case Nil -> FingerSeq.empty; x :+ xs -> xs FingerSeq.|> x
+        f = \case FingerList.EmptyR -> Nil; xs FingerList.:> x -> x :+ xs
+        g = \case Nil -> FingerList.empty; x :+ xs -> xs FingerList.|> x
 
-instance Finite (FingerSeq element)
+instance Finite (FingerList element)
   where
-    size = fromIntegral . FingerSeq.length
+    size = fromIntegral . FingerList.length
 
-instance List (FingerSeq element)
+instance List (FingerList element)
   where
-    list = iso Foldable.toList FingerSeq.fromList
+    list = iso Foldable.toList FingerList.fromList
 
-instance Trivial (FingerSeq element)
+instance Trivial (FingerList element)
   where
     triviality = prism' f (g . Foldable.toList)
       where
-        f = \case Zero -> FingerSeq.empty; One x -> FingerSeq.singleton x
+        f = \case Zero -> FingerList.empty; One x -> FingerList.singleton x
         g = \case [] -> Just Zero; [x] -> Just (One x); _ -> Nothing
 
 
