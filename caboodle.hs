@@ -79,10 +79,10 @@ import qualified Data.HashSet as HashSet
 -- $elements
 -- Sets and lists have an 'Element' type.
 
+type family Element caboodle
+
 -- $keysAndValues
 -- Maps have a 'Key' type and a 'Value' type.
-
-type family Element caboodle
 
 type family Key caboodle
 
