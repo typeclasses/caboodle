@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedLists, OverloadedStrings, ScopedTypeVariables, TypeApplications #-}
+{-# LANGUAGE LambdaCase, OverloadedLists, OverloadedStrings, ScopedTypeVariables, TypeApplications #-}
 
 module Caboodle.Tutorial where
 
@@ -18,25 +18,21 @@ tutorial =
 
     do
       let numbers :: FingerList Natural = [4,1,5,7,8,1,4]
-
-      sortUnique numbers === [1,4,5,7,8]
-
-      keep even numbers    === [4,8,4]
-      discard odd numbers  === [4,8,4]
-
-      keep odd numbers     === [1,5,7,1]
-      discard even numbers === [1,5,7,1]
+      [1,4,5,7,8] === sortUnique numbers
+      [4,8,4] === keep even numbers
+      [4,8,4] === discard odd numbers
+      [1,5,7,1] === keep odd numbers
+      [1,5,7,1] === discard even numbers
 
     do
-      let g = Gen.fingerList (Range.linear 0 10)
-              (Gen.integral (Range.linear @Natural 0 100))
-      numbers <- forAll g
+      numbers <- forAll $ Gen.fingerList (Range.linear 0 10) (Gen.integral (Range.linear @Natural 0 100))
       keep even numbers === discard odd numbers
       keep odd numbers === discard even numbers
 
     do
       let text :: FiniteConsText = "hello"
-      sortUnique text === "ehlo"
+      "ehlo" === sortUnique text
+      "heo" === filter (\case 'l' -> Discard; _ -> Keep) text
 
 testTutorial :: IO Bool
 testTutorial = checkParallel (Group "Caboodle" [("tutorial", property tutorial)])

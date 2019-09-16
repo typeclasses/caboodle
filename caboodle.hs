@@ -17,8 +17,8 @@ module Caboodle
   , Finite (..), mustBeFinite
   -- *** Counting with an upper bound
   , Countable (..), Count (..), Limit, countExactly
-  -- ** Tips
-  , Tip (..), tipBase
+  -- ** Elements on the edge
+  , Edge (..)
   -- *** Endpoints (left/right sides)
   , Endpoints (..), Side (..)
   -- *** Extrema (min/max)
@@ -124,7 +124,7 @@ data Side = Left | Right
 
 type Size = Natural
 
-data Tip element caboodle = Nil | element :+ caboodle
+data Edge element caboodle = Nil | element :+ caboodle
   deriving (Eq, Show)
 
 data Triviality element =
@@ -150,11 +150,11 @@ class Delete caboodle
 
 class Endpoints caboodle
   where
-    side :: Side -> Iso' caboodle (Tip (Element caboodle) caboodle)
+    side :: Side -> Iso' caboodle (Edge (Element caboodle) caboodle)
 
 class Extrema caboodle
   where
-    extreme :: Extreme -> caboodle -> Tip (Element caboodle) caboodle
+    extreme :: Extreme -> caboodle -> Edge (Element caboodle) caboodle
 
 class Filter caboodle
   where
@@ -271,10 +271,10 @@ one =
     (\x -> review triviality (One x))
     (preview triviality >=> \case One x -> Just x; _ -> Nothing)
 
--- | Isomorphism between the 'Tip' type defined in "Caboodle" and the corresponding representation of tips in modules such as "Data.Set" using types in the @base@ package.
+-- | Isomorphism between the 'Edge' type defined in "Caboodle" and the corresponding representation of Edges in modules such as "Data.Set" using types in the @base@ package.
 
-tipBase :: Iso' (Tip (Element caboodle) caboodle) (Maybe (Element caboodle, caboodle))
-tipBase = iso f g
+edgeBase :: Iso' (Edge (Element caboodle) caboodle) (Maybe (Element caboodle, caboodle))
+edgeBase = iso f g
   where
     f = \case Nil -> Nothing; x :+ xs -> Just (x, xs)
     g = \case Nothing -> Nil; Just (x, xs) -> x :+ xs
@@ -409,7 +409,7 @@ instance Ord element => Delete (OrdSet element)
 
 instance Ord element => Extrema (OrdSet element)
   where
-    extreme ex = review tipBase . f ex
+    extreme ex = review edgeBase . f ex
       where
         f = \case Low -> OrdSet.minView; High -> OrdSet.maxView
 
@@ -467,7 +467,7 @@ instance Countable (OrdMap key value)
 
 instance Ord key => Extrema (OrdMap key value)
   where
-    extreme ex = review tipBase . f ex
+    extreme ex = review edgeBase . f ex
       where
         f = \case Low -> OrdMap.minViewWithKey; High -> OrdMap.maxViewWithKey
 
