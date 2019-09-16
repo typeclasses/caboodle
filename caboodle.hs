@@ -148,6 +148,8 @@ class Delete caboodle
   where
     delete :: Element caboodle -> caboodle -> caboodle
 
+-- | A finite list has two endpoints, one for each 'Side'.
+
 class Endpoints caboodle
   where
     side :: Side -> Iso' caboodle (Edge (Element caboodle) caboodle)

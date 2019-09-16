@@ -6,7 +6,7 @@ import Caboodle
 import Hedgehog hiding (discard)
 import Optics
 import Numeric.Natural
-import Prelude hiding (filter)
+import Prelude hiding (filter, Either (..))
 
 import qualified Hedgehog.Gen as Gen
 import qualified Caboodle.Generators as Gen
@@ -33,6 +33,15 @@ tutorial =
       let text :: FiniteConsText = "hello"
       "ehlo" === sortUnique text
       "heo" === filter (\case 'l' -> Discard; _ -> Keep) text
+
+    do
+      let text :: FingerList Char = "hello"
+      let leftEdge :: Edge Char (FingerList Char) = 'h' :+ "ello"
+      let rightEdge :: Edge Char (FingerList Char) = 'o' :+ "hell"
+      view (side Left) text === leftEdge
+      view (side Right) text === rightEdge
+      review (side Left) leftEdge === text
+      review (side Right) rightEdge === text
 
 testTutorial :: IO Bool
 testTutorial = checkParallel (Group "Caboodle" [("tutorial", property tutorial)])
